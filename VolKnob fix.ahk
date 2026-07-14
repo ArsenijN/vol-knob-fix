@@ -2,11 +2,13 @@
 #SingleInstance Force
 
 ;@Ahk2Exe-SetProductName VolKnob Fix
-;@Ahk2Exe-SetVersion 1.1.1
-ScriptVersion := "1.1.1"
+;@Ahk2Exe-SetVersion 1.1.2
+ScriptVersion := "1.1.2"
 ;@Ahk2Exe-SetCompanyName Arsenii Nochevnyi
 ;@Ahk2Exe-SetDescription Volume knob fixer for SteelSeries Sonar
 ;@Ahk2Exe-SetCopyright 2026
+
+;DevNote: the VERSION file have lame version to test the update notifier
 
 ; ============ CONFIG ============
 VolStep       := 1      ; volume % per registered step
@@ -17,10 +19,15 @@ DebounceRatio := 2      ; register every 2nd rotation event
 UpCounter   := 0
 DownCounter := 0
 
+; ---- Startup Tasks ----
+; Run update check 1 second after startup so it doesn't delay hotkey activation
+SetTimer(CheckForUpdate, -1000)
+
 ; ---- Tray menu: toggle + change ratio at runtime ----
 A_TrayMenu.Delete()
 A_TrayMenu.Add("Debounce: ON/OFF", ToggleDebounce)
 A_TrayMenu.Add("Set debounce ratio...", SetRatio)
+A_TrayMenu.Add("Check for Updates (Debug)", (*) => CheckForUpdate(true)) ; Added debug toggle to tray
 A_TrayMenu.Add()
 A_TrayMenu.Add("Exit", (*) => ExitApp())
 UpdateTrayCheck()
@@ -55,19 +62,51 @@ ShouldFire(&counter) {
     return false
 }
 
-CheckForUpdate() {
+CheckForUpdate(debug := false) {
     global ScriptVersion
     try {
-        latest := ""
+        if debug
+            ToolTip("Contacting GitHub...")
+
         req := ComObject("WinHttp.WinHttpRequest.5.1")
         req.Open("GET", "https://raw.githubusercontent.com/ArsenijN/vol-knob-fix/refs/heads/main/VERSION", false)
         req.Send()
+        
+        status := req.Status
         latest := Trim(req.ResponseText)
+        
+        ; If manually triggered or debugging, show a breakdown of the transaction
+        if debug {
+            ToolTip() ; Clear contact tooltip
+            MsgBox(
+                "--- Update Debugger ---`n`n" .
+                "HTTP Status: " . status . " (200 is success)`n`n" .
+                "Raw Response from Server: '" . latest . "'`n`n" .
+                "Local Script Version: '" . ScriptVersion . "'", 
+                "Update Check Debugger", "Iconi"
+            )
+        }
+        
         if (latest != "" and latest != ScriptVersion) {
             result := MsgBox("Update available: v" latest " (you have v" ScriptVersion ")`nOpen download page?", "VolKnob Fix", "YesNo")
             if result = "Yes"
                 Run("https://github.com/ArsenijN/vol-knob-fix/releases/latest")
+        } else if debug {
+            MsgBox("Check finished. No new update needed.`nLocal: " ScriptVersion "`nServer: " (latest = "" ? "[Empty]" : latest), "VolKnob Fix")
         }
+    } catch Error as err {
+        if debug
+            ToolTip()
+        
+        ; Capture any network/COM errors and show exactly where and why it failed
+        MsgBox(
+            "Error checking for updates!`n`n" .
+            "Type: " . Type(err) . "`n" .
+            "Message: " . err.Message . "`n" .
+            "Line: " . err.Line . "`n" .
+            "What: " . err.What, 
+            "Update Debug Error", "Iconx"
+        )
     }
 }
 
