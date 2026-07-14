@@ -2,8 +2,8 @@
 #SingleInstance Force
 
 ;@Ahk2Exe-SetProductName VolKnob Fix
-;@Ahk2Exe-SetVersion 1.1.2
-ScriptVersion := "1.1.2"
+;@Ahk2Exe-SetVersion 1.1.3
+ScriptVersion := "1.1.3"
 ;@Ahk2Exe-SetCompanyName Arsenii Nochevnyi
 ;@Ahk2Exe-SetDescription Volume knob fixer for SteelSeries Sonar
 ;@Ahk2Exe-SetCopyright 2026
@@ -14,20 +14,21 @@ ScriptVersion := "1.1.2"
 VolStep       := 1      ; volume % per registered step
 DebounceOn    := true   ; skip every Nth-1 events to counter loose detent
 DebounceRatio := 2      ; register every 2nd rotation event
+DebugMode     := false   ; Show detailed popups/error codes during update check
 ; =================================
 
 UpCounter   := 0
 DownCounter := 0
 
 ; ---- Startup Tasks ----
-; Run update check 1 second after startup so it doesn't delay hotkey activation
+; Run update check 1 second after startup
 SetTimer(CheckForUpdate, -1000)
 
 ; ---- Tray menu: toggle + change ratio at runtime ----
 A_TrayMenu.Delete()
 A_TrayMenu.Add("Debounce: ON/OFF", ToggleDebounce)
 A_TrayMenu.Add("Set debounce ratio...", SetRatio)
-A_TrayMenu.Add("Check for Updates (Debug)", (*) => CheckForUpdate(true)) ; Added debug toggle to tray
+A_TrayMenu.Add("Check for Updates", (*) => CheckForUpdate(true)) ; Manual check always shows feedback
 A_TrayMenu.Add()
 A_TrayMenu.Add("Exit", (*) => ExitApp())
 UpdateTrayCheck()
@@ -62,10 +63,14 @@ ShouldFire(&counter) {
     return false
 }
 
-CheckForUpdate(debug := false) {
-    global ScriptVersion
+CheckForUpdate(forceShowFeedback := false) {
+    global ScriptVersion, DebugMode
+    
+    ; Determine if we should show popups (either debug is globally on, or user manually triggered it)
+    showFeedback := DebugMode || forceShowFeedback
+    
     try {
-        if debug
+        if showFeedback
             ToolTip("Contacting GitHub...")
 
         req := ComObject("WinHttp.WinHttpRequest.5.1")
@@ -75,38 +80,41 @@ CheckForUpdate(debug := false) {
         status := req.Status
         latest := Trim(req.ResponseText)
         
-        ; If manually triggered or debugging, show a breakdown of the transaction
-        if debug {
-            ToolTip() ; Clear contact tooltip
-            MsgBox(
-                "--- Update Debugger ---`n`n" .
-                "HTTP Status: " . status . " (200 is success)`n`n" .
-                "Raw Response from Server: '" . latest . "'`n`n" .
-                "Local Script Version: '" . ScriptVersion . "'", 
-                "Update Check Debugger", "Iconi"
-            )
+        if showFeedback {
+            ToolTip() ; Clear the contact tooltip
+            
+            ; Only show the diagnostic breakdown if DebugMode is globally active
+            if DebugMode {
+                MsgBox(
+                    "--- Update Debugger ---`n`n" .
+                    "HTTP Status: " . status . " (200 is success)`n`n" .
+                    "Raw Response from Server: '" . latest . "'`n`n" .
+                    "Local Script Version: '" . ScriptVersion . "'", 
+                    "Update Check Debugger", "Iconi"
+                )
+            }
         }
         
         if (latest != "" and latest != ScriptVersion) {
             result := MsgBox("Update available: v" latest " (you have v" ScriptVersion ")`nOpen download page?", "VolKnob Fix", "YesNo")
             if result = "Yes"
                 Run("https://github.com/ArsenijN/vol-knob-fix/releases/latest")
-        } else if debug {
+        } else if showFeedback {
             MsgBox("Check finished. No new update needed.`nLocal: " ScriptVersion "`nServer: " (latest = "" ? "[Empty]" : latest), "VolKnob Fix")
         }
     } catch Error as err {
-        if debug
+        if showFeedback {
             ToolTip()
-        
-        ; Capture any network/COM errors and show exactly where and why it failed
-        MsgBox(
-            "Error checking for updates!`n`n" .
-            "Type: " . Type(err) . "`n" .
-            "Message: " . err.Message . "`n" .
-            "Line: " . err.Line . "`n" .
-            "What: " . err.What, 
-            "Update Debug Error", "Iconx"
-        )
+            ; If anything fails, always throw a descriptive popup so you know why
+            MsgBox(
+                "Error checking for updates!`n`n" .
+                "Type: " . Type(err) . "`n" .
+                "Message: " . err.Message . "`n" .
+                "Line: " . err.Line . "`n" .
+                "What: " . err.What, 
+                "Update Check Error", "Iconx"
+            )
+        }
     }
 }
 
