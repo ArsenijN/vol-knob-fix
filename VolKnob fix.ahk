@@ -2,19 +2,19 @@
 #SingleInstance Force
 
 ;@Ahk2Exe-SetProductName VolKnob Fix
-;@Ahk2Exe-SetVersion 1.1.3
-ScriptVersion := "1.1.3"
+;@Ahk2Exe-SetVersion 1.1.4
+ScriptVersion := "1.1.4"
 ;@Ahk2Exe-SetCompanyName Arsenii Nochevnyi
 ;@Ahk2Exe-SetDescription Volume knob fixer for SteelSeries Sonar
 ;@Ahk2Exe-SetCopyright 2026
 
-;DevNote: the VERSION file have lame version to test the update notifier
+;DevNote: the VERSION file may have lame version to test the update notifier
 
 ; ============ CONFIG ============
 VolStep       := 1      ; volume % per registered step
 DebounceOn    := true   ; skip every Nth-1 events to counter loose detent
 DebounceRatio := 2      ; register every 2nd rotation event
-DebugMode     := false   ; Show detailed popups/error codes during update check
+DebugMode     := true   ; Show detailed popups/error codes during update check
 ; =================================
 
 UpCounter   := 0
@@ -74,7 +74,16 @@ CheckForUpdate(forceShowFeedback := false) {
             ToolTip("Contacting GitHub...")
 
         req := ComObject("WinHttp.WinHttpRequest.5.1")
-        req.Open("GET", "https://raw.githubusercontent.com/ArsenijN/vol-knob-fix/refs/heads/main/VERSION", false)
+        
+        ; 1. CACHE BUSTER: Append unique timestamp to the URL to bypass local and server caches
+        url := "https://raw.githubusercontent.com/ArsenijN/vol-knob-fix/refs/heads/main/VERSION?t=" . A_Now
+        req.Open("GET", url, false)
+        
+        ; 2. CACHE-CONTROL HEADERS: Force Windows to skip its local cache
+        req.SetRequestHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+        req.SetRequestHeader("Pragma", "no-cache")
+        req.SetRequestHeader("Expires", "0")
+        
         req.Send()
         
         status := req.Status
