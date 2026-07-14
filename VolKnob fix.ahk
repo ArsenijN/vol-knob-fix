@@ -2,7 +2,8 @@
 #SingleInstance Force
 
 ;@Ahk2Exe-SetProductName VolKnob Fix
-;@Ahk2Exe-SetVersion 1.1.0
+;@Ahk2Exe-SetVersion 1.1.1
+ScriptVersion := "1.1.1"
 ;@Ahk2Exe-SetCompanyName Arsenii Nochevnyi
 ;@Ahk2Exe-SetDescription Volume knob fixer for SteelSeries Sonar
 ;@Ahk2Exe-SetCopyright 2026
@@ -52,6 +53,22 @@ ShouldFire(&counter) {
     if (Mod(counter, DebounceRatio) = 0)
         return true
     return false
+}
+
+CheckForUpdate() {
+    global ScriptVersion
+    try {
+        latest := ""
+        req := ComObject("WinHttp.WinHttpRequest.5.1")
+        req.Open("GET", "https://raw.githubusercontent.com/ArsenijN/vol-knob-fix/refs/heads/main/VERSION", false)
+        req.Send()
+        latest := Trim(req.ResponseText)
+        if (latest != "" and latest != ScriptVersion) {
+            result := MsgBox("Update available: v" latest " (you have v" ScriptVersion ")`nOpen download page?", "VolKnob Fix", "YesNo")
+            if result = "Yes"
+                Run("https://github.com/ArsenijN/vol-knob-fix/releases/latest")
+        }
+    }
 }
 
 ; ============ VOLUME UP ============
@@ -109,20 +126,4 @@ ShouldFire(&counter) {
         Send("+{F24}")
     }
     SetTimer(() => ToolTip(), -800)
-}
-
-CheckForUpdate() {
-    global ScriptVersion
-    try {
-        latest := ""
-        req := ComObject("WinHttp.WinHttpRequest.5.1")
-        req.Open("GET", "https://raw.githubusercontent.com/ArsenijN/vol-knob-fix/main/version", false)
-        req.Send()
-        latest := Trim(req.ResponseText)
-        if (latest != "" and latest != ScriptVersion) {
-            result := MsgBox("Update available: v" latest " (you have v" ScriptVersion ")`nOpen download page?", "VolKnob Fix", "YesNo")
-            if result = "Yes"
-                Run("https://github.com/ArsenijN/vol-knob-fix/releases/latest")
-        }
-    }
 }
